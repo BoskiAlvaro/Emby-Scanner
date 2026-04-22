@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Media Library Manager</title>
+
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/setup.css') }}">
+</head>
+<body>
+<div class="setup-container">
+    <h1 class="setup-title">Setup</h1>
+
+    {% if error %}
+    <div class="error-msg">{{ error }}</div>
+    {% endif %}
+
+    <div class="form-group">
+        <label>IP Address</label>
+        <input type="text" id="ip" value="{{ initial_data.ip or '' }}" placeholder="192.168.1.100">
+    </div>
+
+    <div class="form-group">
+        <label>Port</label>
+        <input type="number" id="port" value="{{ initial_data.port or '8096' }}" placeholder="8096">
+    </div>
+
+    <div class="form-group">
+        <label>API Key</label>
+        <input type="text" id="apiKey" value="{{ initial_data.api_key or '' }}" placeholder="Your API Key">
+    </div>
+
+    <div id="testResult"></div>
+
+    <div class="btn-group">
+        <button class="btn btn-test" onclick="testConnection()">Test Connection</button>
+        <button class="btn btn-submit" onclick="saveConfig()">Save & Continue</button>
+    </div>
+</div>
+
+<script>
+    function testConnection() {
+        const ip = document.getElementById('ip').value;
+        const port = document.getElementById('port').value;
+        const apiKey = document.getElementById('apiKey').value;
+        const resDiv = document.getElementById('testResult');
+
+        if (!ip || !port || !apiKey) {
+            resDiv.style.display = 'block';
+            resDiv.style.background = '#fadbd8';
+            resDiv.style.color = '#c0392b';
+            resDiv.innerText = "Please fill all fields.";
+            return;
+        }
+
+        resDiv.style.display = 'block';
+        resDiv.innerText = "Testing...";
+        resDiv.style.background = 'var(--highlight-bg)';
+        resDiv.style.color = 'var(--text-color)';
+
+        fetch('/test-connection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ip, port, api_key: apiKey})
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    resDiv.style.background = '#d5f5e3';
+                    resDiv.style.color = '#27ae60';
+                    resDiv.innerText = "✅ Connected: " + data.server_name;
+                } else {
+                    resDiv.style.background = '#fadbd8';
+                    resDiv.style.color = '#c0392b';
+                    resDiv.innerText = "❌ Failed: " + data.message;
+                }
+            })
+            .catch(err => {
+                resDiv.style.background = '#fadbd8';
+                resDiv.style.color = '#c0392b';
+                resDiv.innerText = "❌ Connection Error";
+            });
+    }
+
+    function saveConfig() {
+        const ip = document.getElementById('ip').value;
+        const port = document.getElementById('port').value;
+        const apiKey = document.getElementById('apiKey').value;
+
+        if (!ip || !port || !apiKey) {
+            alert("Please fill all fields.");
+            return;
+        }
+
+        fetch('/save-initial-config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ip, port, api_key: apiKey})
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = "/";
+                } else {
+                    alert("Failed to save config.");
+                }
+            });
+    }
+</script>
+</body>
+</html>

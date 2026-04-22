@@ -1,0 +1,114 @@
+/* static/css/setup.css */
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: var(--bg);
+  margin: 0;
+  padding: 2rem 1rem;
+}
+
+.setup-container {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 2px;
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 8px 40px #0009;
+}
+
+.setup-title {
+  font-family: var(--display);
+  font-size: 2rem;
+  letter-spacing: 0.08em;
+  color: var(--primary);
+  text-align: center;
+  margin: 0 0 1.75rem;
+  font-weight: normal;
+}
+
+.form-group { margin-bottom: 1rem; }
+
+label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  font-weight: normal;
+}
+
+input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.65rem 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input:focus {
+  border-color: var(--primary-dim);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+input::placeholder { color: var(--text-dim); }
+
+.btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+}
+
+.btn {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: 1px solid;
+  border-radius: 2px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: transparent;
+  transition: all 0.15s;
+}
+
+.btn-test {
+  border-color: var(--primary-dim);
+  color: var(--primary);
+}
+.btn-test:hover { background: var(--primary); color: var(--bg); }
+
+.btn-submit {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.btn-submit:hover { background: var(--primary); color: var(--bg); }
+
+.error-msg {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--red);
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+#testResult {
+  margin-top: 1rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 2px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  display: none;
+}

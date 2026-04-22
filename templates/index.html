@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emby Scanner</title>
+
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/translations.js') }}"></script>
+</head>
+<body>
+
+<div class="header-controls">
+    <h1 data-i18n="app_title">Emby Scanner</h1>
+
+    <div class="header-right">
+        <button class="switch-btn" onclick="openLogsModal()" data-i18n="btn_logs">Logs</button>
+        <button class="switch-btn" onclick="openConfigModal()" data-i18n="btn_settings">Settings</button>
+        <button class="switch-btn" onclick="openFilterModal()" data-i18n="btn_filter">Filter</button>
+
+        <div class="dropdown">
+            <button class="switch-btn" onclick="toggleLangDropdown()" id="langBtn">EN ▾</button>
+            <div id="langDropdown" class="dropdown-content">
+                <div class="dropdown-item" onclick="selectLang('en')" data-lang="en">English</div>
+                <div class="dropdown-item" onclick="selectLang('pl')" data-lang="pl">Polski</div>
+                <div class="dropdown-item" onclick="selectLang('de')" data-lang="de">Deutsch</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="library-container">
+    <ul>
+        {% for lib in libraries %}
+        {% if lib.Id not in hidden_ids %}
+        {% set status = items_status.get(lib.Id, {}) %}
+        <li class="library-card">
+            <div class="parent-item item-row">
+                <div class="name-container">
+                    <span class="item-name">📂 <span id="name-{{ lib.Id }}">{{ lib.Name }}</span></span>
+                    <button class="btn-edit" onclick="openRenameModal('{{ lib.Id }}', '{{ lib.Name }}')" title="Rename">
+                        ✏️
+                    </button>
+                </div>
+
+                <div class="item-controls">
+                    <div class="status-info">
+                        <div class="status-row">
+                            <span data-i18n="last_run">🕒 Last:</span>
+                            <span>{{ status.last_run if status.last_run else "-" }}</span>
+                        </div>
+                        {% if status.next_run %}
+                        <div class="status-row next-run">
+                            <span data-i18n="next_run">🔜 Next:</span>
+                            <span>{{ status.next_run }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="btn-group-mobile">
+                        <button class="btn btn-schedule" onclick="openScheduleModal('{{ lib.Id }}', '{{ lib.Name }}')"
+                                data-i18n="btn_schedule">Schedule
+                        </button>
+                        <button class="btn btn-refresh" onclick="refreshItem('{{ lib.Id }}', this)"
+                                data-i18n="btn_refresh">Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {% if lib.SubFolders %}
+            <ul class="sub-list">
+                {% for sub in lib.SubFolders %}
+                {% if sub.Id not in hidden_ids %}
+                {% set sub_status = items_status.get(sub.Id, {}) %}
+                <li>
+                    <div class="child-item item-row">
+                        <div class="name-container" style="flex-wrap: wrap;">
+                                    <span class="item-name">
+                                        📄 <span id="name-{{ sub.Id }}">{{ sub.Name }}</span>
+                                        <span class="child-path">({{ sub.Path }})</span>
+                                    </span>
+                            <button class="btn-edit" onclick="openRenameModal('{{ sub.Id }}', '{{ sub.Name }}')"
+                                    title="Rename">✏️
+                            </button>
+                        </div>
+
+                        <div class="item-controls">
+                            <div class="status-info">
+                                <div class="status-row">
+                                    <span data-i18n="last_run">🕒 Last:</span>
+                                    <span>{{ sub_status.last_run if sub_status.last_run else "-" }}</span>
+                                </div>
+                                {% if sub_status.next_run %}
+                                <div class="status-row next-run">
+                                    <span data-i18n="next_run">🔜 Next:</span>
+                                    <span>{{ sub_status.next_run }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="btn-group-mobile">
+                                <button class="btn btn-schedule"
+                                        onclick="openScheduleModal('{{ sub.Id }}', '{{ sub.Name }}')"
+                                        data-i18n="btn_schedule_short">🕒
+                                </button>
+                                <button class="btn btn-refresh" onclick="refreshItem('{{ sub.Id }}', this)"
+                                        data-i18n="btn_refresh">Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+                {% endif %}
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </li>
+        {% endif %}
+        {% endfor %}
+    </ul>
+</div>
+
+<div id="configModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><span data-i18n="config_header">SERVER SETTINGS</span></div>
+        <div class="modal-body">
+            <div class="schedule-form">
+                <label data-i18n="label_ip">IP Address</label>
+                <input type="text" id="confIp" placeholder="192.168.1.100">
+                <label data-i18n="label_port">Port</label>
+                <input type="number" id="confPort" placeholder="8096">
+                <label data-i18n="label_apikey">API Key</label>
+                <input type="text" id="confKey" placeholder="Your API Key">
+                <div id="configTestResult"
+                     style="padding: 10px; border-radius: 4px; display: none; margin-top: 10px; font-weight: bold; text-align: center;"></div>
+                <button class="btn btn-schedule" onclick="testConfigConnection()" style="margin-top: 5px;"
+                        data-i18n="btn_test">Test Connection
+                </button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" onclick="closeConfigModal()" data-i18n="btn_cancel">Cancel</button>
+            <button class="btn btn-save" onclick="saveConfigSettings()" id="btnSaveConfig" data-i18n="btn_save">Save &
+                Reload
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="logsModal" class="modal">
+    <div class="modal-content" style="width:min(820px,94vw);max-width:unset;">
+        <div class="modal-header">
+            <span data-i18n="logs_header">ACTIVITY LOGS</span>
+            <button class="btn-refresh-icon" onclick="loadLogs(1)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="log-table-container">
+                <table class="log-table">
+                    <thead>
+                    <tr>
+                        <th data-i18n="log_time">Time</th>
+                        <th data-i18n="log_name">Item Name</th>
+                        <th data-i18n="log_path">Path</th>
+                        <th data-i18n="log_source">Source</th>
+                        <th data-i18n="log_status">Status</th>
+                    </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                    <tr>
+                        <td colspan="5">Loading...</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer" style="justify-content:space-between;flex-direction:row;">
+            <div class="pagination-controls">
+                <button class="pagination-btn" id="btnLogPrev" onclick="changeLogPage(-1)" data-i18n="btn_prev">
+                    Previous
+                </button>
+                <span id="logPageInfo">Page 1 / 1</span>
+                <button class="pagination-btn" id="btnLogNext" onclick="changeLogPage(1)" data-i18n="btn_next">Next
+                </button>
+            </div>
+            <button class="btn btn-cancel" onclick="closeLogsModal()" data-i18n="btn_close">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="settingsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><span data-i18n="filter_header">VISIBILITY FILTER</span></div>
+        <div class="modal-body">
+            <ul class="modal-list">
+                {% for lib in libraries %}
+                {% set has_sched = lib.Id in active_schedule_ids %}
+                <li class="modal-group">
+                    <label class="check-label" {% if has_sched %}style="opacity: 0.6; cursor: not-allowed;"
+                           title="{{ 'Element has active schedule' }}" {% endif %}>
+                        <input type="checkbox" class="parent-check" data-id="{{ lib.Id }}"
+                               onchange="toggleChildren(this)" {% if lib.Id in hidden_ids and not has_sched %}checked{%
+                               endif %} {% if has_sched %}disabled{% endif %}>
+                        📂 {{ lib.Name }}
+                        {% if has_sched %}<span style="margin-left: 8px;" title="Cannot hide: Active Schedule">🔒</span>{%
+                        endif %}
+                    </label>
+                    {% if lib.SubFolders %}
+                    <div class="check-sub-container">
+                        {% for sub in lib.SubFolders %}
+                        {% set sub_has_sched = sub.Id in active_schedule_ids %}
+                        <label class="check-label check-sub" {% if sub_has_sched
+                               %}style="opacity: 0.6; cursor: not-allowed;" {% endif %}>
+                            <input type="checkbox" class="child-check parent-{{ lib.Id }}" data-id="{{ sub.Id }}" {% if
+                                   sub.Id in hidden_ids and not sub_has_sched %}checked{% endif %} {% if sub_has_sched
+                                   %}disabled{% endif %}>
+                            📄 {{ sub.Name }} <small>({{ sub.Path }})</small>
+                            {% if sub_has_sched %}<span style="margin-left: 8px;" title="Cannot hide: Active Schedule">🔒</span>{%
+                            endif %}
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" onclick="closeFilterModal()" data-i18n="btn_cancel">Cancel</button>
+            <button class="btn btn-save" onclick="saveFilterSettings()" data-i18n="btn_save">Save</button>
+        </div>
+    </div>
+</div>
+
+<div id="renameModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><span data-i18n="rename_header">RENAME ITEM</span></div>
+        <div class="modal-body">
+            <input type="hidden" id="renameTargetId">
+            <div class="schedule-form">
+                <label for="newNameInput" data-i18n="label_new_name">New Name:</label>
+                <input type="text" id="newNameInput" placeholder="Enter new name...">
+                <small style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;" data-i18n="rename_hint">Leave empty to restore default.</small>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" onclick="closeRenameModal()" data-i18n="btn_cancel">Cancel</button>
+            <button class="btn btn-save" onclick="saveRename()" data-i18n="btn_save">Save</button>
+        </div>
+    </div>
+</div>
+
+<div id="scheduleModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span data-i18n="schedule_header">SCHEDULE —</span> <span id="scheduleTargetName" style="color:var(--text);font-size:0.9em;"></span>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="scheduleTargetId">
+            <h4 style="margin:0 0 0.6rem 0;font-family:var(--mono);font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);" data-i18n="lbl_active_schedules">Active Tasks:</h4>
+            <ul id="schedulesList" style="padding:0;margin-bottom:1.25rem;">
+                <li>Loading...</li>
+            </ul>
+            <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0;">
+
+            <h4 style="margin:0 0 0.6rem 0;font-family:var(--mono);font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);" data-i18n="lbl_add_new">Add New Task:</h4>
+            <div class="schedule-form" style="background:var(--bg3);padding:1rem;border-radius:2px;border:1px solid var(--border);">
+                <div>
+                    <select id="freqSelect" onchange="handleFreqChange()">
+                        <option value="daily_custom" data-i18n="opt_daily">Daily at specific time</option>
+                        <option value="weekly" data-i18n="opt_weekly">Weekly</option>
+                        <option value="1h" data-i18n="opt_1h">Every 1 hour</option>
+                        <option value="2h" data-i18n="opt_2h">Every 2 hours</option>
+                        <option value="3h" data-i18n="opt_3h">Every 3 hours</option>
+                        <option value="6h" data-i18n="opt_6h">Every 6 hours</option>
+                        <option value="12h" data-i18n="opt_12h">Every 12 hours</option>
+                        <option value="24h" data-i18n="opt_24h">Every 24 hours</option>
+                        <option value="15min" data-i18n="opt_15min">Every 15 mins</option>
+                        <option value="30min" data-i18n="opt_30min">Every 30 mins</option>
+                        <option value="45min" data-i18n="opt_45min">Every 45 mins</option>
+                    </select>
+                </div>
+
+                <div id="customTimeContainer">
+                    <label data-i18n="lbl_time">Time</label>
+                    <input type="time" id="customTimeInput">
+                </div>
+
+                <div id="weeklyInputs">
+                    <label data-i18n="lbl_day">Day</label>
+                    <select id="weeklyDay">
+                        <option value="MON" data-i18n="day_mon">Monday</option>
+                        <option value="TUE" data-i18n="day_tue">Tuesday</option>
+                        <option value="WED" data-i18n="day_wed">Wednesday</option>
+                        <option value="THU" data-i18n="day_thu">Thursday</option>
+                        <option value="FRI" data-i18n="day_fri">Friday</option>
+                        <option value="SAT" data-i18n="day_sat">Saturday</option>
+                        <option value="SUN" data-i18n="day_sun">Sunday</option>
+                    </select>
+                    <label data-i18n="lbl_time">Time</label>
+                    <input type="time" id="weeklyTime">
+                </div>
+
+                <button class="btn btn-save" onclick="addSchedule()" style="width:100%;"
+                        data-i18n="btn_add">Add
+                </button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" onclick="closeScheduleModal()" data-i18n="btn_close">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast">Notification</div>
+
+<script>
+    // --- GLOBAL VARIABLES ---
+    let currentLang = localStorage.getItem('lang') || 'en';
+    let currentLogPage = 1;
+    const logPageLimit = 10;
+
+    document.addEventListener("DOMContentLoaded", function () {
+        applyLanguage(currentLang);
+        document.querySelectorAll('.parent-check').forEach(parent => {
+            if (parent.checked) toggleChildren(parent);
+        });
+    });
+
+    // Helper to get translation
+    function t(key) {
+        return (translations[currentLang] && translations[currentLang][key]) ? translations[currentLang][key] : key;
+    }
+
+    // --- LANGUAGE DROPDOWN LOGIC ---
+    function toggleLangDropdown() {
+        document.getElementById("langDropdown").classList.toggle("show");
+    }
+
+    function selectLang(lang) {
+        currentLang = lang;
+        localStorage.setItem('lang', lang);
+        applyLanguage(lang);
+        document.getElementById("langDropdown").classList.remove("show");
+    }
+
+    function applyLanguage(lang) {
+        const btn = document.getElementById('langBtn');
+        const labels = {en: 'EN ▾', pl: 'PL ▾', de: 'DE ▾'};
+        btn.innerText = labels[lang] || 'EN ▾';
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (translations[lang] && translations[lang][key]) el.innerText = translations[lang][key];
+        });
+
+        const newNameInput = document.getElementById('newNameInput');
+        if (newNameInput) newNameInput.placeholder = translations[lang]['rename_hint'];
+
+        document.querySelectorAll('span[title^="Cannot hide"], label[title^="Element has"]').forEach(el => {
+            el.title = translations[lang]['lock_tooltip'];
+        });
+
+        document.querySelectorAll('.dropdown-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.getAttribute('data-lang') === lang) item.classList.add('active');
+        });
+    }
+
+    // --- CONFIG MODAL ---
+    function openConfigModal() {
+        document.getElementById('configModal').style.display = "block";
+        document.getElementById('configTestResult').style.display = "none";
+        fetch('/api/config').then(r => r.json()).then(data => {
+            document.getElementById('confIp').value = data.ip || '';
+            document.getElementById('confPort').value = data.port || '';
+            document.getElementById('confKey').value = data.api_key || '';
+        });
+    }
+
+    function closeConfigModal() {
+        document.getElementById('configModal').style.display = "none";
+    }
+
+    function testConfigConnection() {
+        const ip = document.getElementById('confIp').value;
+        const port = document.getElementById('confPort').value;
+        const apiKey = document.getElementById('confKey').value;
+        const resDiv = document.getElementById('configTestResult');
+        resDiv.style.display = 'block';
+        resDiv.innerText = t('status_wait');
+        resDiv.style.background = 'var(--highlight-bg)';
+        resDiv.style.color = 'var(--text-color)';
+        fetch('/test-connection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ip, port, api_key: apiKey})
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                resDiv.style.background = '#d5f5e3';
+                resDiv.style.color = '#27ae60';
+                resDiv.innerText = t('test_ok') + data.server_name;
+            } else {
+                resDiv.style.background = '#fadbd8';
+                resDiv.style.color = '#c0392b';
+                resDiv.innerText = t('test_fail') + data.message;
+            }
+        });
+    }
+
+    function saveConfigSettings() {
+        const ip = document.getElementById('confIp').value;
+        const port = document.getElementById('confPort').value;
+        const apiKey = document.getElementById('confKey').value;
+        fetch('/api/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ip, port, api_key: apiKey})
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                showToast(t('toast_saved_config'));
+                setTimeout(() => location.reload(), 1500);
+            } else showToast(t('toast_error'), true);
+        });
+    }
+
+    // --- LOGS MODAL ---
+    function openLogsModal() {
+        document.getElementById('logsModal').style.display = "block";
+        loadLogs(1);
+    }
+
+    function closeLogsModal() {
+        document.getElementById('logsModal').style.display = "none";
+    }
+
+    function changeLogPage(delta) {
+        loadLogs(currentLogPage + delta);
+    }
+
+    function loadLogs(page) {
+        if (page < 1) return;
+        currentLogPage = page;
+        const tbody = document.getElementById('logsTableBody');
+        tbody.style.opacity = "0.5";
+        fetch(`/api/logs?page=${page}&limit=${logPageLimit}`).then(r => r.json()).then(data => {
+            tbody.style.opacity = "1";
+            tbody.innerHTML = '';
+            if (data.error || !data.logs || data.logs.length === 0) {
+                const msg = data.error || t('empty_tasks');
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--sub-text);">${data.logs.length === 0 ? "No logs" : msg}</td></tr>`;
+                document.getElementById('logPageInfo').innerText = `${t('lbl_page')} 1 / 1`;
+                document.getElementById('btnLogPrev').disabled = true;
+                document.getElementById('btnLogNext').disabled = true;
+                return;
+            }
+            data.logs.forEach(log => {
+                const row = document.createElement('tr');
+                const statusClass = log.status === 'Success' ? 'status-success' : 'status-failed';
+                const errorInfo = log.error ? ` title="${log.error}"` : '';
+                row.innerHTML = `<td>${log.timestamp}</td><td>${log.name}</td><td style="font-family: monospace; font-size: 0.85em; color: var(--sub-text);">${log.path}</td><td>${log.source}</td><td class="${statusClass}"${errorInfo}>${log.status}</td>`;
+                tbody.appendChild(row);
+            });
+            const totalPages = data.pages || 1;
+            document.getElementById('logPageInfo').innerText = `${t('lbl_page')} ${page} / ${totalPages}`;
+            document.getElementById('btnLogPrev').disabled = (page <= 1);
+            document.getElementById('btnLogNext').disabled = (page >= totalPages);
+        }).catch(err => {
+            tbody.innerHTML = `<tr><td colspan="5" style="color: red">Connection Error</td></tr>`;
+        });
+    }
+
+    // --- FILTER MODAL ---
+    function openFilterModal() {
+        document.getElementById('settingsModal').style.display = "block";
+    }
+
+    function closeFilterModal() {
+        document.getElementById('settingsModal').style.display = "none";
+    }
+
+    function saveFilterSettings() {
+        const hiddenIds = [];
+        document.querySelectorAll('.modal-group').forEach(group => {
+            const parentCheck = group.querySelector('.parent-check');
+            if (parentCheck && parentCheck.checked) hiddenIds.push(parentCheck.getAttribute('data-id')); else if (parentCheck) {
+                const parentId = parentCheck.getAttribute('data-id');
+                group.querySelectorAll(`.child-check.parent-${parentId}`).forEach(child => {
+                    if (child.checked) hiddenIds.push(child.getAttribute('data-id'));
+                });
+            }
+        });
+        fetch('/save-settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({hidden_ids: hiddenIds})
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                showToast(t('toast_saved_refresh'));
+                setTimeout(() => location.reload(), 1000);
+            } else showToast(t('toast_error') + ": " + data.message, true);
+        });
+    }
+
+    // --- SCHEDULE MODAL ---
+    function openScheduleModal(id, name) {
+        document.getElementById('scheduleTargetId').value = id;
+        document.getElementById('scheduleTargetName').innerText = name;
+        document.getElementById('scheduleModal').style.display = "block";
+        const freqSelect = document.getElementById('freqSelect');
+        freqSelect.value = 'daily_custom';
+        document.getElementById('customTimeInput').value = '';
+        document.getElementById('weeklyTime').value = '';
+        handleFreqChange();
+        loadSchedules(id);
+    }
+
+    function closeScheduleModal() {
+        document.getElementById('scheduleModal').style.display = "none";
+        location.reload();
+    }
+
+    function handleFreqChange() {
+        const val = document.getElementById('freqSelect').value;
+        document.getElementById('customTimeContainer').style.display = val === 'daily_custom' ? 'block' : 'none';
+        document.getElementById('weeklyInputs').style.display = val === 'weekly' ? 'block' : 'none';
+    }
+
+    function loadSchedules(id) {
+        const list = document.getElementById('schedulesList');
+        list.innerHTML = '<li>Loading...</li>';
+        fetch(`/api/schedule/${id}`).then(r => r.json()).then(data => {
+            list.innerHTML = '';
+            if (data.length === 0) {
+                list.innerHTML = `<li style="color: var(--sub-text); font-style: italic;">${t('empty_tasks')}</li>`;
+                return;
+            }
+            data.forEach(item => {
+                const li = document.createElement('li');
+                li.style.cssText = "display:flex;justify-content:space-between;align-items:center;background:var(--bg3);padding:0.6rem 0.9rem;margin-bottom:0.5rem;border-radius:2px;border:1px solid var(--border);font-family:var(--mono);font-size:0.8rem;color:var(--text-muted);";
+                let desc = "";
+                if (item.frequency === 'daily_custom') desc = `${t('opt_daily')} <strong>${item.custom_time}</strong>`;
+                else if (item.frequency === 'weekly') {
+                    const [day, time] = item.custom_time.split(' ');
+                    const dayKey = 'day_' + day.toLowerCase();
+                    desc = `${t('opt_weekly')}: <strong>${t(dayKey)} ${time}</strong>`;
+                } else desc = t('opt_' + item.frequency) || item.frequency;
+
+                const trashIcon = `<svg viewBox="0 0 24 24"><path d="M3 6v18h18v-18h-18zm5 14c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm5 0c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm5 0c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm4-18v2h-20v-2h5.711c.9 0 1.631-1.099 1.631-2h5.316c0 .901.73 2 1.631 2h5.711z"/></svg>`;
+                li.innerHTML = `<span style="font-weight: 500;">${desc}</span><button class="btn-delete" onclick="deleteSchedule(${item.id})" title="Delete">${trashIcon}</button>`;
+                list.appendChild(li);
+            });
+        });
+    }
+
+    function addSchedule() {
+        const id = document.getElementById('scheduleTargetId').value;
+        const freq = document.getElementById('freqSelect').value;
+        let customTime = '';
+
+        if (freq === 'daily_custom') {
+            customTime = document.getElementById('customTimeInput').value;
+            if (!customTime) {
+                alert(t('alert_time_req'));
+                return;
+            }
+        } else if (freq === 'weekly') {
+            const day = document.getElementById('weeklyDay').value;
+            const time = document.getElementById('weeklyTime').value;
+            if (!time) {
+                alert(t('alert_day_req'));
+                return;
+            }
+            customTime = `${day} ${time}`;
+        }
+
+        fetch('/api/schedule/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({library_id: id, frequency: freq, custom_time: customTime})
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                showToast(t('toast_added'));
+                loadSchedules(id);
+            } else showToast(t('toast_error'), true);
+        });
+    }
+
+    function deleteSchedule(schedId) {
+        fetch('/api/schedule/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: schedId})
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                showToast(t('toast_deleted'));
+                loadSchedules(document.getElementById('scheduleTargetId').value);
+            } else showToast(t('toast_error'), true);
+        });
+    }
+
+    // --- RENAME MODAL ---
+    function openRenameModal(id, currentName) {
+        document.getElementById('renameTargetId').value = id;
+        document.getElementById('newNameInput').value = document.getElementById(`name-${id}`).innerText;
+        document.getElementById('renameModal').style.display = "block";
+        document.getElementById('newNameInput').focus();
+    }
+
+    function closeRenameModal() {
+        document.getElementById('renameModal').style.display = "none";
+    }
+
+    function saveRename() {
+        const id = document.getElementById('renameTargetId').value;
+        const newName = document.getElementById('newNameInput').value;
+        fetch(`/api/rename/${id}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: newName})
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                showToast(t('toast_saved_rename'));
+                closeRenameModal();
+                setTimeout(() => location.reload(), 500);
+            } else showToast(t('toast_error'), true);
+        });
+    }
+
+    window.onclick = function (event) {
+        if (event.target == document.getElementById('settingsModal')) closeFilterModal();
+        if (event.target == document.getElementById('scheduleModal')) closeScheduleModal();
+        if (event.target == document.getElementById('renameModal')) closeRenameModal();
+        if (event.target == document.getElementById('configModal')) closeConfigModal();
+        if (event.target == document.getElementById('logsModal')) closeLogsModal();
+
+        if (!event.target.matches('#langBtn')) {
+            const dropdowns = document.getElementsByClassName("dropdown-content");
+            for (let i = 0; i < dropdowns.length; i++) {
+                const openDropdown = dropdowns[i];
+                if (openDropdown.classList.contains('show')) {
+                    openDropdown.classList.remove('show');
+                }
+            }
+        }
+    }
+
+    function toggleChildren(parentCheckbox) {
+        const parentId = parentCheckbox.getAttribute('data-id');
+        document.querySelectorAll(`.child-check.parent-${parentId}`).forEach(child => child.checked = parentCheckbox.checked);
+    }
+
+    function showToast(message, isError = false) {
+        var x = document.getElementById("toast");
+        x.textContent = message;
+        x.style.borderLeftColor = isError ? 'var(--red)' : 'var(--primary)';
+        x.className = "show";
+        setTimeout(() => x.className = x.className.replace("show", ""), 3000);
+    }
+
+    function refreshItem(id, btnElement) {
+        const originalText = btnElement.innerText;
+        const i18nKey = btnElement.getAttribute('data-i18n');
+        btnElement.disabled = true;
+        btnElement.innerText = t('status_wait');
+        fetch(`/trigger-refresh/${id}`, {method: 'POST'}).then(r => r.json()).then(data => {
+            if (data.success) {
+                showToast(t('success_refresh'));
+                setTimeout(() => location.reload(), 1000);
+            } else showToast(t('toast_error') + ": " + data.message, true);
+        }).catch(() => showToast(t('toast_conn_error'), true)).finally(() => {
+            setTimeout(() => {
+                btnElement.disabled = false;
+                btnElement.innerText = i18nKey ? t(i18nKey) : originalText;
+            }, 2000);
+        });
+    }
+</script>
+</body>
+</html>
