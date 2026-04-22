@@ -43,8 +43,7 @@ The `config/` directory is mounted as a volume so your configuration and databas
 
 ## Configuration
 
-On first run, navigate to `http://localhost:5000<img width="1456" height="717" alt="embyscanner" src="https://github.com/user-attachments/assets/9faebba0-d5f0-4c9f-8276-5a9db7ea8430" />
-` — you will be redirected to the setup page where you enter:
+On first run, navigate to `http://localhost:5005` — you will be redirected to the setup page where you enter:
 
 | Field | Description |
 |-------|-------------|
